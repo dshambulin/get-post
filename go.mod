@@ -1,4 +1,4 @@
-module restapi
+module get-post
 
 go 1.23.3
 
