@@ -2,35 +2,49 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
-var task string
+func CreateMessage(w http.ResponseWriter, r *http.Request) {
+	var task Task
 
-func GetHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Здарова, %s!", task)
-}
-
-func PostHandler(w http.ResponseWriter, r *http.Request) {
-	var data map[string]string
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		http.Error(w, "Че то не так с JSON", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, "Неверный формат JSON", http.StatusBadRequest)
 		return
 	}
-	task = data["task"]
-	fmt.Fprintf(w, "Обновлено: %s", task)
+
+	if err := DB.Create(&task).Error; err != nil {
+		http.Error(w, "Ошибка при сохранении в БД", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(task)
+}
+
+func GetMessage(w http.ResponseWriter, r *http.Request) {
+	var tasks []Task
+
+	if err := DB.Find(&tasks).Error; err != nil {
+		http.Error(w, "Ошибка при сохранении в БД", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }
 
 func main() {
-	router := mux.NewRouter()
+	InitDB()
 
-	router.HandleFunc("/api/hello", GetHandler).Methods("GET")
-	router.HandleFunc("/api/task", PostHandler).Methods("POST")
+	DB.AutoMigrate(&Task{})
+
+	router := mux.NewRouter()
+	router.HandleFunc("/api/messages", GetMessage).Methods("GET")
+	router.HandleFunc("/api/messages", CreateMessage).Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
